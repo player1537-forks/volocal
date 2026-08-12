@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01354C469FA9D25F726E9E9B /* ConversationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C45CAC47FAC2077DBF09D6 /* ConversationModel.swift */; };
+		0832E3A15BFE5D81187C1794 /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EB70299CC997359FB30D82 /* ModelDownloader.swift */; };
 		0D9F1920DE3CEC8F2C3DBD60 /* SentenceBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63C4761BFF59B998E24EDE71 /* SentenceBuffer.swift */; };
 		17BF9DA27B0DAE6195BCD874 /* ModelLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9302DF6902D5B0BF3DBB94CC /* ModelLoadingView.swift */; };
 		2243A968E58E91F9B959F116 /* LlamaSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 6C0A850F27C81DF8E1F70522 /* LlamaSwift */; };
@@ -33,6 +34,7 @@
 /* Begin PBXFileReference section */
 		0043CAD5AC8C2FE722C4C74C /* PipelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineView.swift; sourceTree = "<group>"; };
 		174A173A569CA4BF546109AC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		20EB70299CC997359FB30D82 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
 		2315FEB668579CE9B2410109 /* LLMManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMManager.swift; sourceTree = "<group>"; };
 		291266CACA92E5C922EAEAD6 /* ModelRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelRegistry.swift; sourceTree = "<group>"; };
 		2B6B189BB680EF1C79BCE706 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -72,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				C7C45CAC47FAC2077DBF09D6 /* ConversationModel.swift */,
+				20EB70299CC997359FB30D82 /* ModelDownloader.swift */,
 				291266CACA92E5C922EAEAD6 /* ModelRegistry.swift */,
 				2B6B189BB680EF1C79BCE706 /* OnboardingView.swift */,
 				CA2740080E7653F6B3AA1C63 /* UnifiedModelManager.swift */,
@@ -260,6 +263,7 @@
 				E3D279E7690E83F7E5B16D6C /* LLMManager.swift in Sources */,
 				57CDC8721D4682FA2D0ED0B1 /* LlamaContext.swift in Sources */,
 				2641CA1C31825ED3240FFBBF /* MetricsOverlay.swift in Sources */,
+				0832E3A15BFE5D81187C1794 /* ModelDownloader.swift in Sources */,
 				17BF9DA27B0DAE6195BCD874 /* ModelLoadingView.swift in Sources */,
 				A03EE7D67AD0A63FC7E16072 /* ModelRegistry.swift in Sources */,
 				35F51AE847027348D965C33B /* OnboardingView.swift in Sources */,

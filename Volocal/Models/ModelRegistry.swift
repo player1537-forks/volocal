@@ -66,9 +66,29 @@ enum ModelRegistry {
     static var llmModelPath: String? {
         let path = modelsDirectory.appendingPathComponent(llmFilename).path
         guard FileManager.default.fileExists(atPath: path),
-              let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-              let size = attrs[.size] as? UInt64,
-              size > 1024 else { return nil }
+            let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+            let size = attrs[.size] as? UInt64,
+            size > 1024
+        else { return nil }
         return path
+    }
+
+    /// Directory where PocketTTS models are stored.
+    /// Must match the path FluidAudio's PocketTtsManager expects at runtime:
+    /// ~/Library/Caches/fluidaudio/Models/
+    static var ttsModelsDirectory: URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let dir =
+            caches
+            .appendingPathComponent("fluidaudio")
+            .appendingPathComponent("Models", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// Directory where Parakeet EOU (STT) models are stored.
+    /// Same as general modelsDirectory.
+    static var sttModelsDirectory: URL {
+        modelsDirectory
     }
 }

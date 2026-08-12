@@ -1,6 +1,6 @@
-import Foundation
 import AVFoundation
 import FluidAudio
+import Foundation
 import os
 
 private let logger = Logger(subsystem: "com.volocal.app", category: "stt")
@@ -41,10 +41,8 @@ final class STTManager: ObservableObject {
             let modelDir = modelsDir.appendingPathComponent(Repo.parakeetEou320.folderName)
 
             let encoderPath = modelDir.appendingPathComponent("streaming_encoder.mlmodelc")
-            if !FileManager.default.fileExists(atPath: encoderPath.path) {
-                logger.info("Downloading Parakeet EOU models...")
-                try await DownloadUtils.downloadRepo(.parakeetEou320, to: modelsDir)
-                logger.info("Parakeet EOU models downloaded")
+            guard FileManager.default.fileExists(atPath: encoderPath.path) else {
+                throw STTError.modelsNotDownloaded
             }
 
             let manager = StreamingEouAsrManager(chunkSize: .ms320, eouDebounceMs: 300)
@@ -169,5 +167,16 @@ final class STTManager: ObservableObject {
         let dir = docs.appendingPathComponent("models", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
+    }
+}
+
+enum STTError: LocalizedError {
+    case modelsNotDownloaded
+
+    var errorDescription: String? {
+        switch self {
+        case .modelsNotDownloaded:
+            return "STT models not downloaded. Please download models first."
+        }
     }
 }

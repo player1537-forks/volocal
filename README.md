@@ -30,11 +30,11 @@ So I decided to replicate the voice AI experience to fully run locally on my iPh
 
 The hard part of running three models at once on a phone is that they all fight for the same hardware. We spread the load across different compute units:
 
-| Component              | Chip          | Why                                                      |
-| ---------------------- | ------------- | -------------------------------------------------------- |
-| **STT** (Parakeet EOU) | Neural Engine | CoreML — leaves GPU and CPU free                         |
-| **LLM** (Qwen3.5-2B)   | GPU           | llama.cpp via Metal, gets the GPU to itself              |
-| **TTS** (PocketTTS)    | CPU + GPU     | CoreML — ANE causes float16 artifacts in Mimi decoder    |
+| Component              | Chip          | Why                                                   |
+| ---------------------- | ------------- | ----------------------------------------------------- |
+| **STT** (Parakeet EOU) | Neural Engine | CoreML — leaves GPU and CPU free                      |
+| **LLM** (Qwen3.5-2B)   | GPU           | llama.cpp via Metal, gets the GPU to itself           |
+| **TTS** (PocketTTS)    | CPU + GPU     | CoreML — ANE causes float16 artifacts in Mimi decoder |
 
 We started with [mlx-audio-swift](https://github.com/Blaizzy/mlx-audio-swift) for TTS, which uses the GPU via MLX. That meant TTS and the LLM were both competing for Metal, causing dropouts and hangs during streaming. Similarly, we tried [Moonshine](https://github.com/usefulsensors/moonshine) for STT — a promising streaming model, but it also runs on GPU/CPU via ONNX Runtime, adding to the contention and using more memory.
 
@@ -45,13 +45,13 @@ Moving STT to [FluidAudio](https://github.com/FluidInference/FluidAudio) (CoreML
 | Component | Model                                                                                       | Download | Runtime           |
 | --------- | ------------------------------------------------------------------------------------------- | -------- | ----------------- |
 | STT       | [Parakeet EOU 320](https://huggingface.co/FluidInference/parakeet-realtime-eou-120m-coreml) | ~450 MB  | CoreML (ANE)      |
-| LLM       | [Qwen3.5-2B Q4_K_S](https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF)                  | ~1.26 GB | llama.cpp (Metal) |
+| LLM       | [Qwen3.5-2B Q4_K_S](https://huggingface.co/unsloth/Qwen3.5-2B-GGUF)                         | ~1.2 GB  | llama.cpp (Metal) |
 | TTS       | [PocketTTS](https://huggingface.co/FluidInference/pocket-tts-coreml)                        | ~600 MB  | CoreML (CPU+GPU)  |
 
 Why these specifically:
 
 - **Parakeet EOU** over Moonshine/Whisper — lower WER (4.87% vs 6.65% Moonshine Medium), half the parameters, and end-of-utterance detection is built into the model so you don't need a separate VAD.
-- **Qwen3.5-2B** over 0.8B — MMLU-Pro nearly doubles (29.7 → 55.3). Slower (~32 vs ~70 tok/s) but the quality difference is obvious in conversation. Q4_K_S keeps it at 1.26 GB.
+- **Qwen3.5-2B** over 0.8B — MMLU-Pro nearly doubles (29.7 → 55.3). Slower (~32 vs ~70 tok/s) but the quality difference is obvious in conversation. Q4_K_S keeps it at 1.2 GB.
 - **PocketTTS** — best quality we found at this size (100M params). ~80ms to first audio, supports voice cloning from a 5-second clip.
 
 ### Audio
@@ -72,6 +72,24 @@ open Volocal.xcodeproj
 ```
 
 Build and run, then tap **Download All Models** on first launch (~2.3 GB, Wi-Fi recommended).
+
+### Preparing the model repo (maintainers)
+
+Models are distributed from a single HuggingFace repo (`player1537/volocal-models`)
+as 128 MiB chunks plus a `manifest.json`. The app downloads those chunks
+independently (resumable via HTTP Range), reassembles them, and verifies SHA256.
+
+To rebuild the repo after changing a model:
+
+```bash
+export HF_TOKEN=hf_...   # token with write access to player1537/volocal-models
+./scripts/prepare_model_repo.py
+```
+
+Requires [uv](https://docs.astral.sh/uv/). The script downloads the source
+models from Unsloth (LLM) and FluidInference (STT/TTS), caches them locally
+under `scripts/.model-repo/`, splits every file into ≤128 MiB chunks, and
+uploads the chunks + manifest. Add `--no-upload` to just build locally.
 
 ## Architecture
 

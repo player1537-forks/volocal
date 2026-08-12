@@ -10,9 +10,6 @@ final class UnifiedModelManager: ObservableObject {
     @Published var modelStates: [ModelRegistry.ModelType: ModelState] = [:]
     @Published var error: String?
 
-    /// Known LLM file size (Q4_K_S variant).
-    private static let llmExpectedSize: Int64 = 1_261_854_880
-
     enum ModelState: Equatable {
         case notDownloaded
         case downloading(progress: Double)
@@ -52,7 +49,7 @@ final class UnifiedModelManager: ObservableObject {
             let url = URL(fileURLWithPath: path)
             let attrs = try? FileManager.default.attributesOfItem(atPath: path)
             let size = (attrs?[.size] as? Int64) ?? 0
-            if abs(size - Self.llmExpectedSize) < Self.llmExpectedSize / 100 {
+            if abs(size - ModelRegistry.llmExpectedSize) < ModelRegistry.llmExpectedSize / 100 {
                 modelStates[.llm] = .downloaded
             } else {
                 try? FileManager.default.removeItem(at: url)
@@ -130,6 +127,9 @@ final class UnifiedModelManager: ObservableObject {
             try? FileManager.default.removeItem(at: ttsDir)
         }
 
+        // Also clear any partially-downloaded chunks for this model
+        try? FileManager.default.removeItem(at: ModelDownloader.chunksDirectory(for: type))
+
         modelStates[type] = .notDownloaded
         error = nil
 
@@ -145,19 +145,8 @@ final class UnifiedModelManager: ObservableObject {
     private func downloadLLM() async {
         modelStates[.llm] = .downloading(progress: 0)
 
-        let destination = ModelRegistry.modelsDirectory
-            .appendingPathComponent(ModelRegistry.llmFilename)
-
-        guard let url = URL(string: ModelRegistry.llmDownloadURL) else {
-            modelStates[.llm] = .error("Invalid URL")
-            return
-        }
-
         do {
-            try await ModelDownloader.shared.downloadLLM(
-                from: url, to: destination,
-                expectedSize: Self.llmExpectedSize
-            ) { [weak self] progress in
+            try await ModelDownloader.shared.download(.llm) { [weak self] progress in
                 Task { @MainActor in
                     self?.modelStates[.llm] = .downloading(progress: progress)
                 }
@@ -177,9 +166,7 @@ final class UnifiedModelManager: ObservableObject {
         modelStates[.stt] = .downloading(progress: 0)
 
         do {
-            try await ModelDownloader.shared.downloadSTT(
-                to: ModelRegistry.modelsDirectory
-            ) { [weak self] progress in
+            try await ModelDownloader.shared.download(.stt) { [weak self] progress in
                 Task { @MainActor in
                     self?.modelStates[.stt] = .downloading(progress: progress)
                 }
@@ -199,9 +186,7 @@ final class UnifiedModelManager: ObservableObject {
         modelStates[.tts] = .downloading(progress: 0)
 
         do {
-            try await ModelDownloader.shared.downloadTTS(
-                to: ModelRegistry.ttsModelsDirectory
-            ) { [weak self] progress in
+            try await ModelDownloader.shared.download(.tts) { [weak self] progress in
                 Task { @MainActor in
                     self?.modelStates[.tts] = .downloading(progress: progress)
                 }

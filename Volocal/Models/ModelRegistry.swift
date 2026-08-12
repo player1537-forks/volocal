@@ -29,7 +29,7 @@ enum ModelRegistry {
 
         var sizeDescription: String {
             switch self {
-            case .llm: return "~1.26 GB"
+            case .llm: return "~1.2 GB"
             case .stt: return "~450 MB"
             case .tts: return "~600 MB"
             }
@@ -46,12 +46,19 @@ enum ModelRegistry {
 
     // MARK: - LLM
 
-    static let llmFilename = "Qwen_Qwen3.5-2B-Q4_K_S.gguf"
+    static let llmFilename = "Qwen3.5-2B-Q4_K_S.gguf"
 
-    static let llmBaseURL = "https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF/resolve/main"
+    /// Expected size (bytes) of the Unsloth Q4_K_S GGUF. Used for a cheap
+    /// launch-time completeness check before full SHA256 verification.
+    static let llmExpectedSize: Int64 = 1_217_757_440
 
-    static var llmDownloadURL: String {
-        "\(llmBaseURL)/\(llmFilename)"
+    // MARK: - Chunked model repo (single repo containing all 3 models)
+
+    static let modelRepo = "player1537/volocal-models"
+    static let manifestFilename = "manifest.json"
+
+    static var manifestURL: String {
+        "https://huggingface.co/\(modelRepo)/resolve/main/\(manifestFilename)"
     }
 
     // MARK: - Paths

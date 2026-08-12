@@ -4,6 +4,12 @@
 *.ort
 *.safetensors
 
+# Chunked model prep script artifacts
+scripts/.model-repo/
+
+# Python
+__pycache__
+
 # Xcode
 xcuserdata/
 DerivedData/

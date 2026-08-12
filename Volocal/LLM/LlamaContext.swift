@@ -101,7 +101,7 @@ actor LlamaContext {
         // Set up sampler chain per Qwen3.5 recommended non-thinking params
         let sparams = llama_sampler_chain_default_params()
         self.sampling = llama_sampler_chain_init(sparams)!
-        llama_sampler_chain_add(self.sampling, llama_sampler_init_penalties(0, 0, 0, 2.0))  // presence_penalty=2.0
+        llama_sampler_chain_add(self.sampling, llama_sampler_init_penalties(llama_n_vocab(vocab), 0, 0, 0, 2.0))  // presence_penalty=2.0
         llama_sampler_chain_add(self.sampling, llama_sampler_init_top_k(20))
         llama_sampler_chain_add(self.sampling, llama_sampler_init_top_p(1.0, 1))
         llama_sampler_chain_add(self.sampling, llama_sampler_init_min_p(0.0, 1))

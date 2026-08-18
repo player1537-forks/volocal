@@ -245,6 +245,36 @@ private final class ChunkDownloader: NSObject, URLSessionDataDelegate, @unchecke
     }
 }
 
+// MARK: - Byte progress accumulator
+
+/// Thread-safe accumulator that tracks how many bytes of a model file's chunks
+/// have been written so far, so concurrent chunk downloads can report smooth,
+/// monotonically-increasing byte progress to the UI.
+private final class ChunkProgressAccumulator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bytesByChunk: [String: Int64] = [:]
+    private var totalBytes: Int64 = 0
+    private var maxReported: Int64 = 0
+
+    init(chunks: [ModelManifest.Chunk]) {
+        for chunk in chunks {
+            bytesByChunk[chunk.name] = 0
+        }
+    }
+
+    func setBytes(_ bytes: Int64, forChunk name: String) -> Int64 {
+        lock.lock()
+        defer { lock.unlock() }
+        let previous = bytesByChunk[name] ?? 0
+        totalBytes += bytes - previous
+        bytesByChunk[name] = bytes
+        if totalBytes > maxReported {
+            maxReported = totalBytes
+        }
+        return maxReported
+    }
+}
+
 // MARK: - Model Downloader
 
 /// Downloads all three models from the consolidated, chunked HuggingFace repo.
@@ -273,6 +303,9 @@ final class ModelDownloader: @unchecked Sendable {
 
         let totalBytes = files.reduce(Int64(0)) { $0 + $1.size }
         var doneBytes: Int64 = 0
+        let report: (Int64) -> Void = { bytes in
+            onProgress(totalBytes > 0 ? Double(bytes) / Double(totalBytes) : 1.0)
+        }
 
         for file in files {
             let dest = baseDir.appendingPathComponent(file.path)
@@ -282,11 +315,16 @@ final class ModelDownloader: @unchecked Sendable {
             // Already present and verified? Skip.
             if fileSize(dest) == file.size, SHA256.hex(fileURL: dest) == file.sha256 {
                 doneBytes += file.size
-                onProgress(totalBytes > 0 ? Double(doneBytes) / Double(totalBytes) : 1.0)
+                report(doneBytes)
                 continue
             }
 
-            try await downloadChunks(file.chunks, into: chunksRoot)
+            // Download this file's chunks, reporting byte-level progress so the
+            // bar advances smoothly rather than jumping per completed file.
+            let baseBytes = doneBytes
+            try await downloadChunks(file.chunks, into: chunksRoot) { chunkBytesDone in
+                report(baseBytes + chunkBytesDone)
+            }
             try reassemble(file.chunks, from: chunksRoot, to: dest)
 
             guard SHA256.hex(fileURL: dest) == file.sha256 else {
@@ -294,7 +332,7 @@ final class ModelDownloader: @unchecked Sendable {
             }
 
             doneBytes += file.size
-            onProgress(totalBytes > 0 ? Double(doneBytes) / Double(totalBytes) : 1.0)
+            report(doneBytes)
         }
 
         // Free the chunk files now that every file in this model is reassembled + verified.
@@ -310,7 +348,9 @@ final class ModelDownloader: @unchecked Sendable {
 
     // MARK: - Manifest
 
-    private func fetchManifest() async throws -> ModelManifest {
+    /// Fetches the latest manifest and caches it locally so the launch-time
+    /// completeness check can run offline on subsequent launches.
+    func fetchManifest() async throws -> ModelManifest {
         guard let url = URL(string: ModelRegistry.manifestURL) else {
             throw DownloadError.invalidURL(ModelRegistry.manifestURL)
         }
@@ -321,19 +361,57 @@ final class ModelDownloader: @unchecked Sendable {
             throw DownloadError.httpError(
                 statusCode: http.statusCode, path: ModelRegistry.manifestFilename)
         }
-        return try JSONDecoder().decode(ModelManifest.self, from: data)
+        let manifest = try JSONDecoder().decode(ModelManifest.self, from: data)
+        try? Self.cacheManifest(manifest)
+        return manifest
+    }
+
+    /// Reads the most recently cached manifest, if one exists.
+    func loadCachedManifest() -> ModelManifest? {
+        guard let data = try? Data(contentsOf: Self.manifestCacheURL) else { return nil }
+        return try? JSONDecoder().decode(ModelManifest.self, from: data)
+    }
+
+    /// Returns true when every file listed for `type` is present locally with the
+    /// size recorded in `manifest`. This is the cheap launch-time completeness
+    /// check (size only); full SHA256 verification happens only at download time.
+    func isComplete(_ type: ModelRegistry.ModelType, manifest: ModelManifest) -> Bool {
+        guard let files = manifest.models[type.rawValue], !files.isEmpty else { return false }
+        let baseDir = Self.baseDirectory(for: type)
+        for file in files {
+            let dest = baseDir.appendingPathComponent(file.path)
+            guard let size = fileSize(dest), size == file.size else { return false }
+        }
+        return true
+    }
+
+    private static func cacheManifest(_ manifest: ModelManifest) throws {
+        let data = try JSONEncoder().encode(manifest)
+        try FileManager.default.createDirectory(
+            at: manifestCacheURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try data.write(to: manifestCacheURL, options: .atomic)
+    }
+
+    private static var manifestCacheURL: URL {
+        ModelRegistry.modelsDirectory.appendingPathComponent("manifest.json")
     }
 
     // MARK: - Chunks
 
-    private func downloadChunks(_ chunks: [ModelManifest.Chunk], into root: URL) async throws {
+    private func downloadChunks(
+        _ chunks: [ModelManifest.Chunk], into root: URL, onProgress: @escaping (Int64) -> Void
+    ) async throws {
+        let accumulator = ChunkProgressAccumulator(chunks: chunks)
         try await withThrowingTaskGroup(of: Void.self) { group in
             var iterator = chunks.makeIterator()
 
             func spawn() {
                 guard let chunk = iterator.next() else { return }
                 group.addTask {
-                    try await self.downloadChunk(chunk, into: root)
+                    try await self.downloadChunk(chunk, into: root) { bytes in
+                        onProgress(accumulator.setBytes(bytes, forChunk: chunk.name))
+                    }
                 }
             }
 
@@ -346,7 +424,9 @@ final class ModelDownloader: @unchecked Sendable {
         }
     }
 
-    private func downloadChunk(_ chunk: ModelManifest.Chunk, into root: URL) async throws {
+    private func downloadChunk(
+        _ chunk: ModelManifest.Chunk, into root: URL, onProgress: @escaping (Int64) -> Void
+    ) async throws {
         let remote = try HF.resolveFile(repo: ModelRegistry.modelRepo, filePath: chunk.name)
         let local = root.appendingPathComponent(chunk.name)
         try FileManager.default.createDirectory(
@@ -356,7 +436,12 @@ final class ModelDownloader: @unchecked Sendable {
             destinationURL: local,
             expectedSize: chunk.size,
             expectedSHA256: chunk.sha256)
-        try await downloader.download { _ in }
+        try await downloader.download { fraction in
+            onProgress(Int64((Double(chunk.size) * fraction).rounded(.down)))
+        }
+        // Record the final byte count in case the last data callback was coalesced
+        // before the task completed.
+        onProgress(chunk.size)
     }
 
     private func reassemble(_ chunks: [ModelManifest.Chunk], from root: URL, to dest: URL) throws {

@@ -15,8 +15,8 @@ final class LLMManager: ObservableObject {
     private var generationTask: Task<Void, Never>?
 
     private let systemPrompt = """
-    You are Volocal, a helpful voice assistant running entirely on-device. \
-    Keep responses concise and conversational — typically 1-3 sentences. \
+    You are Volocal, a helpful voice agent. \
+    Keep responses conversational and topical. \
     You're speaking out loud, so avoid markdown, code blocks, or lists. \
     Be friendly, direct, and natural.
     """

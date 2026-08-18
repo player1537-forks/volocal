@@ -48,10 +48,6 @@ enum ModelRegistry {
 
     static let llmFilename = "Qwen3.5-2B-Q4_K_S.gguf"
 
-    /// Expected size (bytes) of the Unsloth Q4_K_S GGUF. Used for a cheap
-    /// launch-time completeness check before full SHA256 verification.
-    static let llmExpectedSize: Int64 = 1_217_757_440
-
     // MARK: - Chunked model repo (single repo containing all 3 models)
 
     static let modelRepo = "player1537/volocal-models"
